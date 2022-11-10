@@ -10,7 +10,7 @@ certain actions, and entering your password multiple times. This will install 7 
 , `node`, `wipeclean` `cloc` and `trash`.**
 
 ```
-cd ; /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)" ; brew install git ; brew install mvn ; brew install node ; brew install npm ; npm install wipeclean -g ; git clone http://github.com/qRX53/Q/ ; brew install cloc ; cloc Q ; cd Q ; mvn clean compile assembly:single ; brew install trash ; sudo trash ~/.q/Q.jar ; cd target ; ls ; mv Q-1.0-jar-with-dependencies.jar ~/ ; cd ; ls ; sudo mkdir -p .q ; sudo mv Q-1.0-jar-with-dependencies.jar ~/.q/Q.jar ; cd .q ; ls ; cd ; trash Q ; wipeclean ; echo Success!
+cd ; /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)" ; brew install git ; brew install mvn ; brew install node ; brew install npm ; npm install wipeclean -g ; git clone https://github.com/QRX53/q-public ; brew install cloc ; cloc Q ; cd Q ; mvn clean compile assembly:single ; brew install trash ; sudo trash ~/.q/Q.jar ; cd target ; ls ; mv Q-1.0-jar-with-dependencies.jar ~/ ; cd ; ls ; sudo mkdir -p .q ; sudo mv Q-1.0-jar-with-dependencies.jar ~/.q/Q.jar ; cd .q ; ls ; cd ; trash Q ; wipeclean ; echo Success!
 ```
 
 To download, please refer to the downloads section of the GitHub repository, otherwise build from the source with the
@@ -19,7 +19,7 @@ following:
 Installation is simple, on *nix systems, use the following
 
 ```
-git clone http://github.com/qRX53/Q/ ; cd Q ; mvn install mvn compile ; mvn package; 
+git clone https://github.com/QRX53/q-public ; cd Q ; mvn install mvn compile ; mvn package; 
 ```
 
 Success! Now you have a copy of Q on your computer. Now, rename it from 'Q.1.0-with-dependencies.jar` to `Q.jar` Run the
@@ -53,13 +53,7 @@ To install all three, run the following:
 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)" ; brew install git ; brew install mvn ; clear ;
 ```
 
-To do everything at once, run the following:
-
-```
-git clone http://github.com/qRX53/Q/ ; cd Q ; mvn clean compile assembly:single ; brew install trash ; sudo trash ~/.q/Q.jar ; cd target ; ls ; mv Q-1.0-jar-with-dependencies.jar ~/ ; cd ; ls ; sudo mkdir -p .q ; sudo mv Q-1.0-jar-with-dependencies.jar ~/.q/Q.jar ; clear ; cd .q ; ls ; cd ; trash Q ; clear ; echo Success!
-```
-
-Now everything is set up for the CLI, simply run the following, and follow the instructions exactly:
+# Now everything is set up for the CLI, simply run the following, and follow the instructions exactly:
 
 ```
 cd ; sudo ls ; nano .bash_profile ;
@@ -88,7 +82,7 @@ q --run path/to/file.x
 To run any Q file. To update it, simply paste the following.
 
 ```
-git clone http://github.com/qRX53/Q/ ; cd Q ; mvn clean compile assembly:single ; brew install trash ; sudo trash ~/.q/Q.jar ; cd target ; ls ; mv Q-1.0-jar-with-dependencies.jar ~/ ; cd ; ls ; sudo mkdir -p .q ; sudo mv Q-1.0-jar-with-dependencies.jar ~/.q/Q.jar ; clear ; cd .q ; ls ; cd ; trash Q ; clear ; echo Success!
+git clone https://github.com/QRX53/q-public ; cd Q ; mvn clean compile assembly:single ; brew install trash ; sudo trash ~/.q/Q.jar ; cd target ; ls ; mv Q-1.0-jar-with-dependencies.jar ~/ ; cd ; ls ; sudo mkdir -p .q ; sudo mv Q-1.0-jar-with-dependencies.jar ~/.q/Q.jar ; clear ; cd .q ; ls ; cd ; trash Q ; clear ; echo Success!
 ```
 
 **OBJECTS**
