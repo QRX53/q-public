@@ -1,0 +1,14 @@
+.idea/
+target/
+*.iml
+.DS_Store
+.gitattributes
+gen/
+.antlr/
+*.pb
+*.comp
+.qmeta/
+*.g4
+./UnitFolderTest
+*.untst
+Discord.xml
