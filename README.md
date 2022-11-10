@@ -1,4 +1,4 @@
-# This is the public version of the language, so that I don't have to sign in on github every time because the personal access token thing is stupid, this won't be updated as often, if at all.
+# This is the public version of the language, so that I don't have to sign in on github every time because the personal access token thing is stupid, this won't be updated as often, only when i need a public copy.
 
 # Q Key:
 
