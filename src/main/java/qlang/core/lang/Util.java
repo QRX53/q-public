@@ -15,6 +15,8 @@ import java.net.MalformedURLException;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.*;
 
 /*
@@ -23,6 +25,102 @@ import java.util.*;
 
 public class Util {
 
+    public static String updateScript =
+            """
+                    #!/bin/bash
+                                        
+                    # define silly colors for figlet
+                    GREEN='\\033[0;32m'
+                    NC='\\033[0m'
+                    ALIASQ='alias q'
+                    clear
+                    # set color to green
+                    echo -e "\\n\\n\\n\\n\\n\\n\\n\\n\\n\\n${GREEN}"
+                                        
+                    echo "Beginning install process. This will take a while, and will require sudo access. Please allow up to 5 minutes"
+                                        
+                    # leave green coloration.
+                    echo "${NC}"
+                                        
+                    sleep 7
+                                        
+                    # install brew, just in case user doesnt have it already
+                    # shellcheck disable=SC2164
+                    cd
+                    /bin/bash -c "$(curl -fsSL -s https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+                    # install git, just in case user doesnt have it already
+                    brew install -q git
+                    # install mvn, just in case user doesnt have it already
+                    brew install mvn -q
+                    # install node, just in case user doesnt have it already
+                    brew install node -q
+                    # install npm, just in case user doesnt have it already
+                    brew install npm -q
+                    # install java, just in case user doesnt have it already
+                    brew install java -q
+                    # install figlet, just in case user doesnt have it already
+                    brew install figlet -q
+                    # clone the repo into a new folder
+                    git clone http://github.com/qRX53/Q/ QLANGUPDATEFOLDERTEMP &>/dev/null
+                    cd QLANGUPDATEFOLDERTEMP || exit
+                    # assemble the jarfile (with dependencies)
+                    mvn clean compile assembly:single -q
+                    # install trash, just in case user doesnt have it already
+                    brew install trash -q
+                    # move the old Q jarfile into the trash.
+                    sudo trash ~/.q/Q.jar
+                    # change into the target folder, and then move the new jarfile into the home dir
+                    cd target || exit
+                    mv Q-1.0-jar-with-dependencies.jar ~/
+                    # cd to the home dir, make the .q folder if there isnt one already
+                    cd || exit
+                    sudo mkdir -p .q
+                    # move the new jarfile into the .q folder, and rename it.
+                    sudo mv Q-1.0-jar-with-dependencies.jar ~/.q/Q.jar
+                    # move the cloned repo to the trash
+                    trash QLANGUPDATEFOLDERTEMP
+                    # clear the console
+                    clear
+                                        
+                    if ! sudo grep -q "${ALIASQ}" "$~/.zshrc"; then
+                      # shellcheck disable=SC2024
+                      sudo echo "alias q='java -jar ~/.q/Q.jar'" >>~/.zshrc
+                    fi
+                                        
+                    if ! sudo grep -q "${ALIASQ}" "$~/.bashrc"; then
+                      # shellcheck disable=SC2024
+                      sudo echo "alias q='java -jar ~/.q/Q.jar'" >>~/.bashrc
+                    fi
+                                        
+                    clear
+                                        
+                    # set color to green
+                    echo "${GREEN}"
+                                        
+                    # create ansi 'success' text
+                    figlet "Success!"
+                                        
+                    # leave green coloration.
+                    echo "${NC}"
+                                        
+                    echo "Run 'q -v' to verify installation"
+                    # simple as.
+                                        
+                    """;
+
+    public final static void clearConsole() {
+        try {
+            final String os = System.getProperty("os.name");
+
+            if (os.contains("Windows")) {
+                Runtime.getRuntime().exec("cls");
+            } else {
+                Runtime.getRuntime().exec("clear");
+            }
+        } catch (final Exception e) {
+            throw new Problem(e);
+        }
+    }
 
     public static String execute(String cmd) {
         String result = null;
@@ -30,7 +128,8 @@ public class Util {
              Scanner s = new Scanner(inputStream).useDelimiter("\\A")) {
             result = s.hasNext() ? s.next() : null;
         } catch (IOException e) {
-            e.printStackTrace();
+            //e.printStackTrace();
+            throw new Problem(e);
         }
         return result;
     }
@@ -68,9 +167,9 @@ public class Util {
                     File input = new File(args[++counter]);
                     try {
 
-                        if (!new File(input.getAbsolutePath().replaceAll("\\.x", ".comp")).exists()) {
+                        if (!new File(input.getAbsolutePath().replaceAll("\\.q", ".comp")).exists()) {
                             try {
-                                new File(input.getAbsolutePath().replaceAll("\\.x", ".comp")).createNewFile();
+                                new File(input.getAbsolutePath().replaceAll("\\.q", ".comp")).createNewFile();
                             } catch (Exception e) {
                                 System.out.println(e.getMessage());
                             }
@@ -82,7 +181,7 @@ public class Util {
                     } catch (Exception e) {
 
                         String err = "[FATAL] " + e.getMessage();
-                        if (e.getMessage().startsWith("src\\main\\Q\\") || e.getMessage().startsWith("C:") || e.getMessage().endsWith(".x")) {
+                        if (e.getMessage().startsWith("src\\main\\Q\\") || e.getMessage().startsWith("C:") || e.getMessage().endsWith(".q")) {
                             err += " (File not found)";
                         }
 
@@ -203,7 +302,7 @@ public class Util {
 
     public static void resolveImport(String imp) {
 
-        File file = new File(System.getProperty("user.dir") + "/" + imp + ".l");
+        File file = new File(System.getProperty("user.dir") + "/" + imp + ".u");
 
         for (File f : Environment.global.parsed) {
             if (f.getPath().equals(file.getPath())) {
@@ -222,7 +321,7 @@ public class Util {
                 return;
             }
 
-            throw new Problem("Could not parse " + imp + ".l (the file may not exist or be in the wrong format)");
+            throw new Problem("Could not parse " + imp + ".u (the file may not exist or be in the wrong format)");
         }
 
     }
@@ -268,32 +367,30 @@ public class Util {
     }
 
     public static String execCmd(String cmd) {
-        final String[] result = {null};
-        final Process p;
-        try {
-            p = Runtime.getRuntime().exec(cmd);
+        String result = null;
+        try (InputStream inputStream = Runtime.getRuntime().exec(cmd).getInputStream();
+             Scanner s = new Scanner(inputStream).useDelimiter("\\A")) {
+            result = s.hasNext() ? s.next() : null;
         } catch (IOException e) {
+            // e.printStackTrace();
             throw new Problem(e);
         }
+        return result;
+    }
 
-        new Thread(() -> {
-            BufferedReader input = new BufferedReader(new InputStreamReader(p.getInputStream()));
-            String line;
-
-            try {
-                while ((line = input.readLine()) != null)
-                    result[0] += line;
-            } catch (IOException e) {
-                e.printStackTrace();
-            }
-        }).start();
-
-        try {
-            p.waitFor();
-        } catch (InterruptedException e) {
-            throw new Problem(e);
-        }
-        return result[0];
+    public static void copyDirectory(String sourceDirectoryLocation, String destinationDirectoryLocation)
+            throws IOException {
+        Files.walk(Paths.get(sourceDirectoryLocation))
+                .forEach(source -> {
+                    Path destination = Paths.get(destinationDirectoryLocation, source.toString()
+                            .substring(sourceDirectoryLocation.length()));
+                    try {
+                        Files.copy(source, destination);
+                    } catch (IOException e) {
+                        //e.printStackTrace();
+                        throw new Problem(e);
+                    }
+                });
     }
 
     public static class FileUtil {
@@ -315,4 +412,5 @@ public class Util {
             return charCount;
         }
     }
+
 }

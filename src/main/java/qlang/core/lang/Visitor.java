@@ -22,13 +22,14 @@ import qlang.runtime.errors.RVal;
 import qlang.runtime.errors.Tip;
 import qlang.runtime.libs.AWT.AWT;
 import qlang.runtime.libs.OS;
-import qlang.runtime.libs.QCONSOLELIBRARY;
+import qlang.runtime.libs.Qio;
 import qlang.runtime.libs.WebServer;
 import qlang.runtime.libs.util.HTTP;
 
 import javax.swing.*;
 import java.awt.*;
 import java.io.*;
+import java.lang.reflect.Method;
 import java.net.URISyntaxException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -75,9 +76,58 @@ public class Visitor extends QBaseVisitor<Value> implements Cloneable {
     }
 
     @Override
+    public Value visitJavaMethodReference(QParser.JavaMethodReferenceContext ctx) {
+        StringBuilder sb = new StringBuilder();
+
+        for (var x : ctx.Identifier()) {
+            sb.append(".").append(x.getText());
+        }
+
+        String className = sb.toString().replaceFirst(".", "");
+
+        List<String> strings = new ArrayList<>();
+        if (ctx.String() != null) {
+            for (var x : ctx.String()) {
+                strings.add(x.getText());
+            }
+        }
+
+        List<Object> objs = new ArrayList<>();
+        if (ctx.Identifier2() != null) {
+            for (var x : ctx.Identifier2()) {
+                objs.add(x.getText());
+            }
+        }
+
+        try {
+
+            Class<?> cls = Class.forName(className);
+            Method m = cls.getDeclaredMethod("method name");
+            // m.invoke(objectToInvokeOn, params);
+
+            if (objs.size() > 0) {
+                m.invoke(objs.toArray());
+            } else if (strings.size() > 0) {
+                m.invoke(strings.toArray());
+            } else {
+                m.invoke(null);
+            }
+        } catch (Exception e) {
+            throw new Problem(ctx, e);
+        }
+
+        return visitChildren(ctx);
+    }
+
+    @Override
     public Value visitNativeFunction(QParser.NativeFunctionContext ctx) {
         String jcode = "";
-        String className = ctx.Identifier(1).getText().toString();
+        String className;
+        if (ctx.Identifier(1) == null) {
+            className = "Temp";
+        } else {
+            className = ctx.Identifier(1).getText().toString();
+        }
 
         for (var x : ctx.String()) {
             jcode += "\n" + x.toString();
@@ -889,10 +939,10 @@ public class Visitor extends QBaseVisitor<Value> implements Cloneable {
             text.append(".").append(o.getText());
         }
 
-        if (Environment.global.allLibs.contains(text.toString().replace(".q.", ""))) {
+        if (ctx.LT() != null) {
             Util.register(text.toString(), false);
             if (text.toString().replace(".q.", "").equals("Console")) {
-                new QCONSOLELIBRARY().init();
+                new Qio().init();
             }
             return Value.VOID;
         }
@@ -901,7 +951,7 @@ public class Visitor extends QBaseVisitor<Value> implements Cloneable {
             Path currentRelativePath = Paths.get("");
             String currentPath = currentRelativePath.toAbsolutePath().toString();
 
-            File file = new File(currentPath + "/" + path + ".l");
+            File file = new File(currentPath + "/" + path + ".u");
             if (f.getPath().equals(file.getPath())) {
                 return null;
             }
@@ -911,13 +961,13 @@ public class Visitor extends QBaseVisitor<Value> implements Cloneable {
         Path currentRelativePath = Paths.get("");
         String currentPath = currentRelativePath.toAbsolutePath().toString();
 
-        File file = new File(currentPath + "/" + path + ".l");
+        File file = new File(currentPath + "/" + path + ".u");
         Environment.global.parsed.add(file);
 
         try {
-            lexer = new QLexer(CharStreams.fromFileName(currentPath + "/" + path + ".l"));
+            lexer = new QLexer(CharStreams.fromFileName(currentPath + "/" + path + ".u"));
         } catch (IOException e) {
-            throw new Problem("Library or File not found: " + path, ctx, this.curClass);
+            throw new Problem("Library or File not found: " + path, ctx, this.curClass, new Tip("If you are using a Q project creator, you must also import the name of the project, like: project.src.objs.File!"));
         }
 
         QParser parser = new QParser(new CommonTokenStream(lexer));
@@ -1759,40 +1809,34 @@ public class Visitor extends QBaseVisitor<Value> implements Cloneable {
     public Value visitIdentifierFunctionCall(QParser.IdentifierFunctionCallContext ctx) {
         List<QParser.ExpressionContext> params = ctx.exprList() != null ? ctx.exprList().expression() : new ArrayList<>();
         String id = ctx.Identifier().getText() + params.size();
-        String id2 = ctx.Identifier().getText();
+        String idWithoutParamsSize = ctx.Identifier().getText();
         Function function;
 
         if (Environment.global.visitor.functions.containsKey(id)) {
             function = Environment.global.visitor.functions.get(id);
-        } else if (Environment.global.nativeJava.containsKey(id2)) {
+        } else if (Environment.global.nativeJava.containsKey(idWithoutParamsSize)) {
 
-            String jcode = Environment.global.nativeJava.get(id2);
-            String cname = Environment.global.nativeNames.get(id2);
+            String jcode = Environment.global.nativeJava.get(idWithoutParamsSize);
+            String className = Environment.global.nativeNames.get(idWithoutParamsSize);
 
             try {
-                File file = new File(cname + ".java");
+                File createdFile = new File(className + ".java");
 
-                if (!file.exists()) {
-                    file.createNewFile();
+                if (!createdFile.exists()) {
+                    createdFile.createNewFile();
                 }
 
-                FileWriter fw = new FileWriter(file);
+                FileWriter fw = new FileWriter(createdFile);
                 fw.write(jcode);
                 fw.close();
 
-                String dir = file.getAbsolutePath().replace(file.getName(), "");
-                String afterClass = Util.replaceLast(file.getAbsolutePath(), ".java", ".class");
+                String afterClass = Util.replaceLast(createdFile.getName(), ".java", ".class");
 
-                System.out.println(dir);
-
-//            String home = util.execCmd("cd ~ ; cd.. ; cd.. ;");
-//            String s = util.execCmd("cd " + dir);
-                String s2 = Util.execCmd("javac " + file.getAbsolutePath());
-                System.out.println(s2);
-                String s3 = Util.execCmd("java " + afterClass);
+                String s2 = Util.execCmd(String.format("javac %s.java", className));
+                String s3 = Util.execCmd("java " + className);
                 System.out.println(s3);
 
-                file.delete();
+                createdFile.delete();
 
                 File filez = new File(afterClass);
 
@@ -1804,7 +1848,7 @@ public class Visitor extends QBaseVisitor<Value> implements Cloneable {
                 throw new Problem(e);
             }
 
-            return new Value("902387");
+            return new Value(true);
 
         } else if ((function = this.functions.get(id)) != null) {
             function = this.functions.get(id);

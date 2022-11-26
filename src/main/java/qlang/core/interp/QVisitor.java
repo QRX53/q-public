@@ -348,6 +348,14 @@ public interface QVisitor<T> extends ParseTreeVisitor<T> {
     T visitIdList(QParser.IdListContext ctx);
 
     /**
+     * Visit a parse tree produced by {@link QParser#javaMethodReference}.
+     *
+     * @param ctx the parse tree
+     * @return the visitor result
+     */
+    T visitJavaMethodReference(QParser.JavaMethodReferenceContext ctx);
+
+    /**
      * Visit a parse tree produced by {@link QParser#classStatement}.
      *
      * @param ctx the parse tree

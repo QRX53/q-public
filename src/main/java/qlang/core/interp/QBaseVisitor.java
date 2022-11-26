@@ -469,6 +469,17 @@ public class QBaseVisitor<T> extends AbstractParseTreeVisitor<T> implements QVis
      * {@link #visitChildren} on {@code ctx}.</p>
      */
     @Override
+    public T visitJavaMethodReference(QParser.JavaMethodReferenceContext ctx) {
+        return visitChildren(ctx);
+    }
+
+    /**
+     * {@inheritDoc}
+     *
+     * <p>The default implementation returns the result of calling
+     * {@link #visitChildren} on {@code ctx}.</p>
+     */
+    @Override
     public T visitClassStatement(QParser.ClassStatementContext ctx) {
         return visitChildren(ctx);
     }

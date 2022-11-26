@@ -600,6 +600,20 @@ public interface QListener extends ParseTreeListener {
     void exitIdList(QParser.IdListContext ctx);
 
     /**
+     * Enter a parse tree produced by {@link QParser#javaMethodReference}.
+     *
+     * @param ctx the parse tree
+     */
+    void enterJavaMethodReference(QParser.JavaMethodReferenceContext ctx);
+
+    /**
+     * Exit a parse tree produced by {@link QParser#javaMethodReference}.
+     *
+     * @param ctx the parse tree
+     */
+    void exitJavaMethodReference(QParser.JavaMethodReferenceContext ctx);
+
+    /**
      * Enter a parse tree produced by {@link QParser#classStatement}.
      *
      * @param ctx the parse tree

@@ -754,6 +754,24 @@ public class QBaseListener implements QListener {
      * <p>The default implementation does nothing.</p>
      */
     @Override
+    public void enterJavaMethodReference(QParser.JavaMethodReferenceContext ctx) {
+    }
+
+    /**
+     * {@inheritDoc}
+     *
+     * <p>The default implementation does nothing.</p>
+     */
+    @Override
+    public void exitJavaMethodReference(QParser.JavaMethodReferenceContext ctx) {
+    }
+
+    /**
+     * {@inheritDoc}
+     *
+     * <p>The default implementation does nothing.</p>
+     */
+    @Override
     public void enterClassStatement(QParser.ClassStatementContext ctx) {
     }
 
