@@ -4,6 +4,8 @@
 
 # Clone (or download the repo), and head over to the `/dwn` folder. Double click that executable. Once the process is done, you can delete the cloned or downloaded repo.
 
+# To quick start, double click the executable you just downloaded, and wait for it to be installed. Once installed, run `q --create helloworld`, and a brand new q project will be created for you. To run it, use `q helloworld`.
+
 **OBJECTS**
 
 - Objects are subsets of classes
