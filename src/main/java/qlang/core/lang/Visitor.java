@@ -8,14 +8,14 @@ import org.antlr.v4.runtime.ParserRuleContext;
 import org.antlr.v4.runtime.tree.ParseTree;
 import org.antlr.v4.runtime.tree.TerminalNode;
 import org.jetbrains.annotations.NotNull;
-import qlang.core.internal.Environment;
-import qlang.core.internal.NameSpace;
-import qlang.core.internal.Parser;
-import qlang.core.internal.Scope;
+import org.yaml.snakeyaml.Yaml;
+import org.yaml.snakeyaml.constructor.Constructor;
+import qlang.core.internal.*;
 import qlang.core.interp.QBaseVisitor;
 import qlang.core.interp.QLexer;
 import qlang.core.interp.QParser;
 import qlang.core.lang.Q.QClass;
+import qlang.core.lang.Q.QModule;
 import qlang.core.lang.Q.Value;
 import qlang.runtime.errors.Problem;
 import qlang.runtime.errors.RVal;
@@ -48,25 +48,18 @@ import java.util.concurrent.atomic.AtomicBoolean;
  *
  */
 
-@SuppressWarnings("all")
 public class Visitor extends QBaseVisitor<Value> implements Cloneable {
     private static final RVal returnValue = new RVal();
     public final Map<String, Function> functions;
     public Scope scope;
     public boolean lib;
-    public String curClass;
+    public String curClass = "Unnamed";
     public Visitor parent;
     public String packageName = Util.string();
 
     public Visitor(Scope scope, Map<String, Function> functions) {
         this.scope = scope;
         this.functions = new HashMap<>(functions);
-    }
-
-    public Visitor(Scope scope, Map<String, Function> functions, String cname) {
-        this.scope = scope;
-        this.functions = new HashMap<>(functions);
-        this.curClass = cname;
     }
 
     @Override
@@ -143,6 +136,99 @@ public class Visitor extends QBaseVisitor<Value> implements Cloneable {
         }
 
         return new Value("JAVA");
+    }
+
+    @Override
+    public Value visitModule(QParser.ModuleContext ctx) {
+
+        String modname = ctx.Identifier().getText().toString();
+        boolean pub = true;
+
+        if (ctx.Public() == null || ctx.Private() != null) {
+            pub = false;
+        }
+
+        QModule qmod = new QModule();
+        qmod.name = modname;
+        qmod.isPublic = pub;
+
+        Map<String, String> nameAndRegex = new HashMap<>();
+
+        if (ctx.modStatement() != null) {
+            for (var x : ctx.modStatement().Identifier2()) {
+                for (var y : ctx.modStatement().String()) {
+                    nameAndRegex.put(x.getText().toString(), y.getText().toString());
+                }
+            }
+        }
+
+        qmod.nameAndRegex = nameAndRegex;
+        Environment.global.modules.put(qmod.name, qmod);
+        return new Value(true);
+    }
+
+    @Override
+    public Value visitModuleReference(QParser.ModuleReferenceContext ctx) {
+
+        // STRING str -> "Hello";
+        // String.STRING str -> "Hello";
+
+        String id0 = ctx.Identifier(0).getText().toString();
+
+        if (Environment.global.modules.containsKey(id0)) {
+            String name = ctx.Identifier(2).getText().toString();
+            String type = ctx.Identifier(1).getText().toString();
+            String toMatch = ctx.String().getText().toString();
+
+            QModule qmod = Environment.global.modules.get(id0);
+            if (qmod.matches(name, toMatch)) {
+                Environment.global.modValues.put(name, toMatch);
+            } else {
+                throw new Problem("[FATAL] Module '" + name + "'s definition of '" + id0 + "' does not match '" + toMatch + "'");
+            }
+        } else {
+            Environment.global.modules.forEach((s, q) -> {
+                q.nameAndRegex.forEach((name, regex) -> {
+                    if (name.equals(id0)) {
+                        String toMatch = ctx.String().getText().toString();
+                        if (q.matches(name, toMatch)) {
+                            Environment.global.modValues.put(name, toMatch);
+                        } else {
+                            throw new Problem("Module '" + name + "'s definition of '" + id0 + "' does not match '" + toMatch + "'");
+                        }
+                    }
+                });
+            });
+        }
+        return new Value(true);
+    }
+
+    // stdmod -> (str)::print();
+    // stdmod -> (num1, num2)::add(print);
+
+    @Override
+    public Value visitStdmodFunction(QParser.StdmodFunctionContext ctx) {
+
+        List<String> names = new ArrayList<String>();
+
+        for (var x : ctx.Identifier()) {
+            names.add(x.getText().toString());
+        }
+
+        for (String s : names) {
+            if (!Environment.global.modValues.containsKey(s)) {
+                throw new Problem("[ERROR] There is not a definition for " + s);
+            }
+        }
+        String function = ctx.Identifier2(0).toString();
+        System.out.println(function);
+
+        if (function.equals("print")) {
+            for (String s : names) {
+                System.out.println(Environment.global.modValues.get(s));
+            }
+        }
+        return new Value(true);
     }
 
     @Override
@@ -270,14 +356,6 @@ public class Visitor extends QBaseVisitor<Value> implements Cloneable {
             Util.check("Files", "Files", ctx, Util.getOrDefault(false, this), this.curClass, this.packageName);
 
             switch (method) {
-                case "absPath":
-
-                    return qlang.runtime.libs.Files.absPath(ctx);
-
-                case "here":
-
-                    return new Value(System.getProperty("user.dir"));
-
                 case "delete":
 
                     qlang.runtime.libs.Files.delete(ctx);
@@ -608,31 +686,24 @@ public class Visitor extends QBaseVisitor<Value> implements Cloneable {
         ParseTree block = ctx.block();
         String id = ctx.Identifier().getText() + params.size();
 
-        try {
-            if (this.functions.get(id).exists()) {
-                throw new Problem("Function: '" + id + "' already exists.", ctx, this.curClass);
-            }
-        } catch (Exception e) {
-            String s = e.getMessage();
-            if (e.getMessage().contains("Function.exists()")) {
-                s = "";
-            }
-            System.err.print(s);
+        if (this.functions.containsKey(id) || Environment.global.globalFns.containsKey(id)) {
+            throw new Problem("Function: '" + ctx.Identifier().getText() + "' already exists in the current context.", ctx, this.curClass);
         }
 
-        Function f;
-
-        {
-            f = new Function(this.scope, params, block);
-        }
+        Function f = new Function(this.scope, params, block);
 
         f.v = (this);
-
         if (ctx.Async() != null) {
             f.setAsync(true);
         }
 
-        this.functions.put(id, f);
+        if (ctx.Public() != null) {
+            f = new Function(Environment.global.scope, params, block);
+            f.v = Environment.global.visitor;
+            Environment.global.globalFns.put(id, f);
+        } else {
+            this.functions.put(id, f);
+        }
         return Value.VOID;
     }
 
@@ -827,7 +898,6 @@ public class Visitor extends QBaseVisitor<Value> implements Cloneable {
         boolean print = true;
         int num = 0;
         boolean before = true;
-        boolean after = false;
 
         String ops = """
                 \t\t<"default">
@@ -859,15 +929,12 @@ public class Visitor extends QBaseVisitor<Value> implements Cloneable {
                 }
 
                 before = true;
-                after = false;
             } else if (v.toString().equals("printafter")) {
                 if (!print) {
                     throw new Problem("Cannot attach tag '" + v + "' to try-except, as the 'suppress' tag has already been attached", ctx, this.curClass);
                 }
-                after = true;
                 before = false;
             } else if (v.toString().equals("default")) {
-                after = false;
                 before = true;
             } else {
                 throw new Problem("Tag '" + v + "' is not a valid tag.", ctx, this.curClass);
@@ -913,20 +980,20 @@ public class Visitor extends QBaseVisitor<Value> implements Cloneable {
                 replace("https://github.com/", "https://raw.githubusercontent.com/")
                 .replace("/blob", "");
 
-        String fileContents = Util.getTextFromGithub(link);
+        String fileContents = Util.getTextFromLink(link);
 
         Parser parser = new Parser().fromText(fileContents);
         try {
             parser.parse(false);
         } catch (Exception e) {
-            throw new Problem(e.getMessage(), ctx, this.curClass, new Tip("GitHub takes some time to update the 'https://raw.githubusercontent.com/' domain, so allow up to an hour for the file to be downloaded.\n"));
+            throw new Problem(e.getMessage(), ctx, this.curClass, new Tip("GitHub takes some time to update the 'https://raw.githubusercontent.com/' domain, so allow up to an hour for the file to be updated and ready for lexing.\n"));
         }
 
         return Value.VOID;
     }
 
     @Override
-    public Value visitImportStatement(QParser.ImportStatementContext ctx) {
+    public Value visitImportStatement(QParser.ImportStatementContext ctx) { 
 
         StringBuilder path = new StringBuilder();
         StringBuilder text = new StringBuilder();
@@ -939,11 +1006,57 @@ public class Visitor extends QBaseVisitor<Value> implements Cloneable {
             text.append(".").append(o.getText());
         }
 
-        if (ctx.LT() != null) {
-            Util.register(text.toString(), false);
-            if (text.toString().replace(".q.", "").equals("Console")) {
-                new Qio().init();
+        if (ctx.Load() != null) {
+            String s = ctx.String().getText().toString().replace("\"", "");
+
+            File pfolder = new File(s);
+            if (!pfolder.exists()) {
+                throw new Problem("Project '" + s + "' does not exist.", ctx, this.curClass);
             }
+            
+            if (!pfolder.isDirectory()) {
+                throw new Problem("Project '" + s +"' is not a project, it is a file.", ctx, this.curClass);
+            }
+
+            String fpath;
+
+            File yamlfile = new File(pfolder.getPath() + "/q.yaml");
+            try {
+                InputStream inputStream = new FileInputStream(yamlfile);
+                Yaml yaml = new Yaml(new Constructor(QYaml.class));
+
+                QYaml qy = yaml.load(inputStream);
+                fpath = qy.getHomedir();
+                System.out.println(fpath);
+            } catch (Exception e) {
+                throw new Problem("The specified QFile or QYaml file does not exist!", ctx, this.curClass);
+            }
+
+            try {
+                Parser p = new Parser(new File(fpath));
+                p.parse();
+            } catch (IOException e) {
+                throw new Problem(e.getMessage(), ctx, this.curClass);
+            }
+
+        }
+
+        if (ctx.LT() != null) {
+            String pat = (System.getProperty("user.home") + "/.q/" + text.toString().replaceFirst(".", "") + ".u");
+            if (new File(pat).exists()) {
+                Parser p = new Parser(new File(pat));
+                try {
+                    p.parse();
+                } catch (IOException e) {
+                    throw new Problem(e);
+                }
+            } else {
+                Util.register(text.toString(), false);
+                if (text.toString().replace(".q.", "").equals("Console")) {
+                    new Qio().init();
+                }
+            }
+
             return Value.VOID;
         }
 
@@ -1715,6 +1828,10 @@ public class Visitor extends QBaseVisitor<Value> implements Cloneable {
         String id = ctx.Identifier().getText();
         Value val = scope.exists(id);
 
+        if (Environment.global.modValues.containsKey(id)) {
+            val = new Value(Environment.global.modValues.get(id));
+        }
+
         if (ctx.indexes() != null) {
             List<QParser.ExpressionContext> exps = ctx.indexes().expression();
             val = resolveIndexes(val, exps);
@@ -1814,6 +1931,8 @@ public class Visitor extends QBaseVisitor<Value> implements Cloneable {
 
         if (Environment.global.visitor.functions.containsKey(id)) {
             function = Environment.global.visitor.functions.get(id);
+        } else if (Environment.global.globalFns.containsKey(id)) {
+            function = Environment.global.globalFns.get(id);
         } else if (Environment.global.nativeJava.containsKey(idWithoutParamsSize)) {
 
             String jcode = Environment.global.nativeJava.get(idWithoutParamsSize);
@@ -1850,8 +1969,10 @@ public class Visitor extends QBaseVisitor<Value> implements Cloneable {
 
             return new Value(true);
 
-        } else if ((function = this.functions.get(id)) != null) {
+        } else if (this.functions.get(id) != null) {
             function = this.functions.get(id);
+        } else {
+            function = null;
         }
 
         if (function != null) {
@@ -1869,8 +1990,9 @@ public class Visitor extends QBaseVisitor<Value> implements Cloneable {
             }
 
             return function.call(args, this.functions);
+        } else {
+            throw new Problem("The function '" + idWithoutParamsSize + "' is not defined in the current scope.");
         }
-        throw new Problem(ctx);
     }
 
     @Override

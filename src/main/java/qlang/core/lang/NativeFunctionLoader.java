@@ -30,7 +30,8 @@ public class NativeFunctionLoader {
     }
 
     public NativeFunctionLoader registerNatives() {
-
+        // register libraries, the text is the name of the library, and then boolean is whether or not it's formatted
+        // unformatted livraries look like `.q.std` as opposed to formatted, which is just `std` or `q.std`.
         Util.register("std", true);
         Util.register("lang", true);
         Util.register("String", true);
@@ -604,6 +605,42 @@ public class NativeFunctionLoader {
             }
         });
 
+        Environment.global.defineNativeFunction(new Function.INativeFunction() {
+            @Override
+            public void exec() {
+
+            }
+
+            @Override
+            public String name() {
+                return "here";
+            }
+
+            @Override
+            public Value ret() {
+                return new Value(System.getProperty("user.dir"));
+            }
+
+            @Override
+            public String parent() {
+                return "Files";
+            }
+
+            @Override
+            public void exec(List<Value> list) {
+
+            }
+
+            @Override
+            public Value ret(List<Value> list) {
+                return null;
+            }
+
+            @Override
+            public boolean args() {
+                return false;
+            }
+        });
         Environment.global.defineNativeFunction(new Function.INativeFunction() {
 
             @Override

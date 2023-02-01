@@ -1,6 +1,5 @@
 package qlang.core.lang;
 
-import org.antlr.v4.runtime.CharStreams;
 import org.antlr.v4.runtime.ParserRuleContext;
 import org.jetbrains.annotations.NotNull;
 import qlang.core.internal.Environment;
@@ -108,21 +107,7 @@ public class Util {
                                         
                     """;
 
-    public final static void clearConsole() {
-        try {
-            final String os = System.getProperty("os.name");
-
-            if (os.contains("Windows")) {
-                Runtime.getRuntime().exec("cls");
-            } else {
-                Runtime.getRuntime().exec("clear");
-            }
-        } catch (final Exception e) {
-            throw new Problem(e);
-        }
-    }
-
-    public static String execute(String cmd) {
+    public static void execute(String cmd) {
         String result = null;
         try (InputStream inputStream = Runtime.getRuntime().exec(cmd).getInputStream();
              Scanner s = new Scanner(inputStream).useDelimiter("\\A")) {
@@ -131,7 +116,6 @@ public class Util {
             //e.printStackTrace();
             throw new Problem(e);
         }
-        return result;
     }
 
     public static boolean getOrDefault(boolean otherB, Visitor v) {
@@ -142,7 +126,7 @@ public class Util {
         }
     }
 
-    public static void lpFolder(File folder) {
+    public static void lpFolder(@NotNull File folder) {
         for (File fileEntry : Objects.requireNonNull(folder.listFiles())) {
             if (fileEntry.isDirectory()) {
                 lpFolder(fileEntry);
@@ -157,51 +141,7 @@ public class Util {
         }
     }
 
-    // enable Q CLI. With this enabled, then all the standard flags and commands will apply.
-    public static void eqcli(String @NotNull [] args) {
-        int counter = 0;
-        for (String cmd : args) {
-
-            switch (cmd) {
-                case "--setpath", "-p" -> {
-                    File input = new File(args[++counter]);
-                    try {
-
-                        if (!new File(input.getAbsolutePath().replaceAll("\\.q", ".comp")).exists()) {
-                            try {
-                                new File(input.getAbsolutePath().replaceAll("\\.q", ".comp")).createNewFile();
-                            } catch (Exception e) {
-                                System.out.println(e.getMessage());
-                            }
-                        }
-
-                        Parser parser = new Parser(CharStreams.fromFileName(input.getAbsolutePath()));
-                        Environment.global.lst.addAll(parser.parse(false));
-
-                    } catch (Exception e) {
-
-                        String err = "[FATAL] " + e.getMessage();
-                        if (e.getMessage().startsWith("src\\main\\Q\\") || e.getMessage().startsWith("C:") || e.getMessage().endsWith(".q")) {
-                            err += " (File not found)";
-                        }
-
-                        System.out.println(err);
-                        System.exit(0);
-                    }
-                }
-                case "--help", "-h" -> System.out.println("""
-                        Help Menu
-                        ---------
-                        cmd: [--setpath/-p] Sets the path to the file to execute.
-                        cmd: [--help/-h] Sends this help menu
-                        cmd: [--fromtext/-t] Executes the given text as if it were a file
-                        """);
-                case "" -> counter++;
-            }
-        }
-    }
-
-    public static String getTextFromGithub(String link) {
+    public static String getTextFromLink(String link) {
         URL url;
         try {
             url = new URL(link);
@@ -213,7 +153,7 @@ public class Util {
             assert url != null;
             http = (HttpURLConnection) url.openConnection();
         } catch (IOException e1) {
-            System.out.println("[FATAL] " + e1.getMessage());
+            throw new Problem(e1);
         }
         assert http != null;
         Map<String, List<String>> headerMapMap = http.getHeaderFields();
@@ -224,12 +164,12 @@ public class Util {
                 try {
                     url = new URL(link);
                 } catch (MalformedURLException e) {
-                    System.out.println("[FATAL] " + e.getMessage());
+                    throw new Problem(e);
                 }
                 try {
                     http = (HttpURLConnection) url.openConnection();
                 } catch (IOException e) {
-                    System.out.println("[FATAL] " + e.getMessage());
+                    throw new Problem(e);
                 }
                 headerMapMap = http.getHeaderFields();
             }
@@ -238,13 +178,13 @@ public class Util {
         try {
             Stream = http.getInputStream();
         } catch (IOException e) {
-            System.out.println("[FATAL] " + e.getMessage());
+            throw new Problem(e);
         }
         String Response = null;
         try {
             Response = getStringFromStream(Stream);
         } catch (IOException e) {
-            System.out.println("[FATAL] " + e.getMessage());
+            throw new Problem(e);
         }
         return Response;
     }
@@ -338,7 +278,8 @@ public class Util {
 
     // suppress warnings because this code is phenomenally bad
     @SuppressWarnings("all")
-    public static void check(String p, String t2, ParserRuleContext ctx, boolean namespaceImport, String c, String namespace) {
+    public static void check(String p, String t2, ParserRuleContext ctx, boolean namespaceImport, String c, String
+            namespace) {
         if ((p.equals(".std") || p.equals("std")) && namespace.equals("standard")) {
             return;
         }
@@ -350,6 +291,7 @@ public class Util {
         }
     }
 
+    @SuppressWarnings("all")
     public static void check(String p, String t2, ParserRuleContext ctx, String c, String namespace) {
         if ((p.equals(".std") || p.equals("std")) && namespace.equals("standard")) {
             return;
@@ -388,7 +330,7 @@ public class Util {
                         Files.copy(source, destination);
                     } catch (IOException e) {
                         //e.printStackTrace();
-                        throw new Problem(e);
+                        throw new Problem(e.getMessage());
                     }
                 });
     }

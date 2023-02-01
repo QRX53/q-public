@@ -3,6 +3,7 @@ package qlang.core.internal;
 import org.antlr.v4.runtime.Token;
 import qlang.core.lang.Function;
 import qlang.core.lang.Q.QClass;
+import qlang.core.lang.Q.QModule;
 import qlang.core.lang.Util;
 import qlang.core.lang.Visitor;
 import qlang.runtime.errors.Problem;
@@ -11,7 +12,10 @@ import qlang.runtime.libs.WebServer;
 
 import javax.swing.*;
 import java.io.File;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 
 /*
     The environment that Q is currently running in, this contains everything important.
@@ -19,17 +23,22 @@ import java.util.*;
 
 public class Environment {
 
+    // static and available to use to anyone
     public static Environment global = new Environment();
     public static String[] args;
 
-    public Map<String, Function> functions = Collections.emptyMap();
+    // General language things
+    public Map<String, Function> functions = new HashMap<String, Function>();
+    public Map<String, Function> globalFns = new HashMap<>();
     public Scope scope = new Scope();
     public Visitor visitor = new Visitor(scope, functions);
     public String response = Util.string();
     public boolean verbose = false;
     public double shver = 1.0;
-    public double qversion = 2.1;
+    public String qversion = "2.1.7";
+    public Parser parser = new Parser();
 
+    // Lists<>
     public List<File> parsed = new ArrayList<>();
     public List<Token> lst = new ArrayList<>();
     public List<AWT> wins = new ArrayList<>();
@@ -37,9 +46,12 @@ public class Environment {
     public List<String> allowedLibs = new ArrayList<>();
     public List<String> allLibs = new ArrayList<>();
 
+    // Maps<>
     public Map<String, QClass> classes = new HashMap<>();
+    public Map<String, QModule> modules = new HashMap<>();
     public Map<String, QClass.QObject> objs = new HashMap<>();
     public Map<String, File> files = new HashMap<>();
+    public Map<String, Object> modValues = new HashMap<>();
     public Map<String, Function.INativeFunction> natives = new HashMap<>();
     public Map<String, Function> consts = new HashMap<>();
     public Map<String, NameSpace> namespaces = new HashMap<>();

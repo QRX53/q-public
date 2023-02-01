@@ -15,12 +15,13 @@ import qlang.core.lang.Visitor;
 import qlang.runtime.errors.Problem;
 
 import java.io.*;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Objects;
 import java.util.Scanner;
 
 /*
-    Main file, run this to execute the 'Main.q' file
+    Main file. Contains the CLI tool for Q.
  */
 
 public class Runfile {
@@ -57,8 +58,59 @@ public class Runfile {
                     fpath = args[0];
                 }
             } else if (args[0].equals("--env") || args[0].equals("-e")) {
-                System.out.println(Environment.global);
+                StringBuilder b = new StringBuilder();
+                Scanner scanner = new Scanner(System.in);
+                while (!Objects.equals(scanner.next(), "--q")) {
+                    System.out.println(">> ");
+                    b.append(scanner.nextLine()).append("\n");
+                }
+                scanner.close();
+                Parser.execBlock(b.toString());
                 System.exit(0);
+            } else if (args[0].equals("--projectinfo") || args[0].equals("-pi")) {
+                if (args.length == 1) {
+                    System.err.println("[FATAL] No project provided for `--projectinfo` argument");
+                    System.exit(-1);
+                }
+
+                File projectFolder = new File(args[1]);
+                if (!projectFolder.exists()) {
+                    System.err.println("[FATAL] Project folder does not exist: " + projectFolder.getAbsolutePath());
+                    System.exit(-1);
+                }
+                if (!projectFolder.isDirectory()) {
+                    System.err.println("[FATAL] Project folder is not a directory: " + projectFolder.getAbsolutePath());
+                    System.exit(-1);
+                }
+
+                File yamlfile = new File(projectFolder.getPath() + File.separator + "q.yaml");
+
+                if (!yamlfile.exists()) {
+                    System.err.println("[FATAL] Project yaml info file does not exist: " + yamlfile.getAbsolutePath());
+                    System.exit(-1);
+                }
+
+                try {
+                    InputStream inputStream = new FileInputStream(yamlfile);
+                    Yaml yaml = new Yaml(new Constructor(QYaml.class));
+
+                    QYaml qy = yaml.load(inputStream);
+
+                    String str = String.format("""
+                            Information about: %s
+                                This project was written by: %s
+                                Project size is %smb (%skb)
+                                Project version is %s
+                                The main file for this project is: %s
+                            """, qy.getName(), qy.getAuthor(), "" + ((projectFolder.length() / 1024) / 1024), (projectFolder.length() / 1024), qy.getVersion(), qy.getHomedir());
+
+                    System.out.println(Chalk.on(str).bgBlue());
+                    System.exit(0);
+
+                } catch (Exception e) {
+                    throw new Problem(e);
+                }
+
             } else if (args[0].equals("--run") || args[0].equals("-r")) {
                 if (args.length == 1) {
                     System.out.println(Chalk.on("No QFile provided! Try this, `q --run <file>.q`").bgBlue());
@@ -96,10 +148,14 @@ public class Runfile {
                 System.exit(0);
             } else if (args[0].equals("--help") || args[0].equals("-h")) {
                 System.out.println("""
+                        Format:
+                        --FLAGNAME <ADDITIONAL OPTIONS IF ANY> (-FLAGSHORTHAND <ADDITIONAL OPTIONS IF ANY>) | DESCRIPTION OF FLAG.
                         Flags:
                         --env (-e) | Print the environment
+                        --create (-c) (--sign, -c) (--type <type>, -t <type>) | Creates a new Q project
                         --runblind <file> (-rb <file>) | Run the file given with no security checks
                         --run <file> (-r <file>) | Run a file. Same as `q <file>.q`
+                        --projectinfo (-pi <projectfolder>) <projectfolder> | Print information from a project Qyaml file.
                         --info (-i) | Returns Q version, host, build, dir, and more.
                         --killall (-ka) | Kills Q processes.
                         --terminal (-t) | Allows you to enter your code in the terminal directly, rather than a file.
@@ -118,19 +174,64 @@ public class Runfile {
                 String projectName = args[1];
                 // maybe add more to do with this later, awt projects and such
                 String ptype = "console";
+                String author = "Anonymous";
+                String ppath = "/main.q";
+
+                if (args.length > 2) {
+                    for (int i = 0; i < args.length; i++) {
+                        if ((args[i].equals("--sign") || args[i].equals("-s"))) {
+                            author = System.getProperty("user.name");
+                        } else if (args[i].equals("--type") || args[i].equals("-t")) {
+                            try {
+                                int ix = i;
+                                ptype = args[ix++];
+                            } catch (Exception e) {
+
+                                StringBuilder errStrSquiggle = new StringBuilder();
+                                long size = Arrays.toString(args).toCharArray().length;
+
+                                for (long xe = 0; xe < size; xe++) {
+                                    errStrSquiggle.append("^");
+                                }
+
+                                throw new Problem(String.format("""
+                                        \n
+                                        [FATAL] Invalid value for --type. Valid values are:
+                                        console
+                                        awt
+                                        single-file
+                                        crate
+                                                                            
+                                        See '%s'
+                                             %s Invalid expression for --type.
+                                             Try like this: 'q --create project -t console'
+                                        """, Arrays.toString(args), errStrSquiggle.toString()));
+                            }
+                        } else if (args[i].equals("--mainfile") || args[i].equals("-mf")) {
+
+                            try {
+                                int ix = i;
+                                ppath = args[ix++];
+                            } catch (Exception e) {
+                                System.out.println(Chalk.on("[ERROR] No `mainfile` attribute specified for `q --create <project> --mainfile <FILE>`").bgRed());
+                            }
+                        }
+                    }
+                }
 
                 String yaml =
                         String.format("""
                                 ---
                                 # This file was automatically created by the q --create flag.
+                                # Changing these values may impact the way that Q runs the project
+                                # DO NOT change the value names, as this will break q's project system.
                                 name: "%s"
                                 type: "%s"
                                 version: "0.0.1"
+                                # If you would like this to be automatically filled, use the `--sign (-s)` flag
                                 author: "%s"
-                                # please note, if you change this:
-                                # do NOT put a / in front of '%s' because it will cause problems with the unix file system.
                                 homedir: "%s"
-                                """, projectName, ptype, System.getProperty("user.name"), projectName, projectName + "/src/main.q");
+                                """, projectName, ptype, author, projectName + "/src/main.q");
 
                 File homedir = new File(projectName + "/src");
 
@@ -138,7 +239,7 @@ public class Runfile {
                     homedir.mkdirs();
                 }
 
-                File project = new File(projectName + "/src/main.q");
+                File project = new File(projectName + "/src" + ppath);
 
                 if (!project.exists()) {
                     try {
@@ -149,20 +250,49 @@ public class Runfile {
                     }
                 }
 
+                File printer = new File(projectName + "/src/objs/Printer.u");
+
+                if (!new File(projectName + "/src/objs/").exists()) {
+                    new File(projectName + "/src/objs/").mkdirs();
+                }
+
+                if (!printer.exists()) {
+                    try {
+                        printer.createNewFile();
+                    } catch (IOException e) {
+                        // e.printStackTrace();
+                        throw new Problem(e);
+                    }
+                }
+
+                try {
+                    FileWriter writer = new FileWriter(printer);
+                    writer.write("""
+                            #import <q.std>;
+                                                        
+                            pub async fn print(str):
+                                std::coutln(str);
+                            end
+                            """);
+                    writer.close();
+                } catch (Exception e) {
+                    throw new Problem(e);
+                }
+
                 try {
                     FileWriter pro = new FileWriter(project);
-                    pro.write("""
-                            #import <q.std>;
+                    pro.write(String.format("""
+                            #import %s.src.objs.Printer;
                                                         
                             // This file was automatically created by the q --create flag.
                             class Main {
                                                         
                                 fn main(args):
-                                    std::coutln("Hello, World!");
+                                    print("Hello, World!");
                                 end
                                                         
                             }
-                            """);
+                            """, projectName.replaceFirst("/", "")));
                     pro.close();
                 } catch (IOException e) {
                     throw new Problem(e);
@@ -183,23 +313,23 @@ public class Runfile {
                     fw = new FileWriter(yamlfile);
                     fw.write(yaml);
                     fw.close();
-                } catch (IOException e) {
-                    throw new RuntimeException(e);
+                } catch (Exception e) {
+                    throw new Problem(e);
                 }
 
-                System.out.println(Chalk.on("Created project '" + projectName + "' successfully").bgBlue());
+                System.out.println(Chalk.on("Created project '" + projectName + "' successfully"));
                 System.exit(0);
 
             } else if (args[0].equals("--executable") || args[0].equals("-ex")) {
 
-                if (args[1].equals("") || args.length == 1) {
+                if (args.length <= 1) {
                     System.out.println(Chalk.on("[ERROR] `q --executable <executable>` requires field <executable>").bgRed());
                     System.exit(-1);
                 }
 
                 File exe = new File(args[1]);
                 if (!exe.exists()) {
-                    throw new Problem("File '" + args[1] + "' does not exist");
+                    throw new Problem("Folder '" + args[1] + "' does not exist");
                 }
 
                 if (!exe.isDirectory()) {
@@ -217,11 +347,19 @@ public class Runfile {
                     }
 
                     FileWriter fw = new FileWriter(executable);
-                    fw.write("#!/bin/zsh\n\nq " + exe.getName() + "/src/main.q");
+
+                    String ex = String.format(
+                            """
+                                    #!/bin/bash
+                                        
+                                    java -jar %s/%s
+                                    """, exe.getAbsolutePath(), "main.q");
+
+                    fw.write("#!/bin/zsh\n\njava -jar ~/.q/Q.jar --run " + exe.getAbsolutePath() + "/src/main.q");
                     fw.close();
                     executable.setExecutable(true);
                 } catch (IOException e) {
-                    throw new RuntimeException(e);
+                    throw new Problem(e.getMessage());
                 }
 
             } else if (args[0].equals("-i") || args[0].equals("--info")) {
@@ -381,6 +519,8 @@ public class Runfile {
                                 case "filetree" -> {
                                     if (next.equals("-p") || next.equals("--print")) {
                                         System.out.println("""
+                                                <OUTDATED>:
+                                                                                                
                                                 /qlang::Folder 611.1 kB
                                                 ├─ /core::Folder 584.1 kB
                                                 │  ├─ /internal::Folder 37.4 kB
@@ -592,7 +732,7 @@ public class Runfile {
             System.exit(0);
         }
 
-        mainFile = new QFile(globalScope, env, fpath, new Parser());
+        mainFile = new QFile(globalScope, env, fpath, Environment.global.parser);
         mainFile.execute();
 
     }
